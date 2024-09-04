@@ -14,7 +14,7 @@ Below is a list of the main libraries and Python versions for each environment:
 
 1) openmm-openff-openfe-grand-py311
 
-    The openmm-openff-openfe-grand-py311 environment is streamlined for computational chemistry and molecular modeling, focusing on Python 3.11. It primarily includes the following core dependencies:
+    The openmm-openff-openfe-grand-py311 environment is streamlined for computational chemistry and molecular modeling, focusing on Python 3.11. It primarily includes the following dependencies:
 
         Python Version: 3.11
         Channels: Includes repositories from omnia, anaconda, conda-forge, essexlab, and defaults.
@@ -26,15 +26,27 @@ Below is a list of the main libraries and Python versions for each environment:
      
     These components form the backbone of the environment, suitable for researchers and developers engaged in molecular simulations, force field manipulation, and quantum chemistry computations.
 
+# Workflows
+This section outlines the key packages and related workflows. See each directory for detailed information on each workflow and calculation. 
+
+    1) Grand
+    Description: Grand is a suite of tools designed for conducting grand canonical Monte Carlo simulations. It is particularly useful for studying systems under varying chemical potentials and for simulating complex molecular interactions.
+
+    2) PySCF
+    Description: PySCF is an ab initio computational chemistry package that supports a wide range of quantum chemical calculations. It is essential for performing high-level quantum chemistry computations, including Hartree-Fock and Density Functional Theory (DFT) calculations.
+
+    3) OpenMM
+    Description: OpenMM is a high-performance toolkit for molecular simulations. It supports a wide range of simulation types, including molecular dynamics, Monte Carlo, and energy minimization. OpenMM is designed to be highly extensible and can be used for both small-scale and large-scale simulations.
+
 # Tools
-    The `tools` folder contains utility scripts designed to assist with various checks and verifications related to the Python environment and system capabilities. These scripts are essential for ensuring that the computational environment meets the requirements for running the molecular modeling scripts. They are also a useful debuging tool. 
+    The `tools` folder contains utility scripts designed to assist with various checks and verifications related to the Python environment and system capabilities. These scripts are essential for ensuring that the computational environment meets the requirements for running the molecular modeling scripts. They are also useful debuging tools. 
 
 # Usage
-Most files in this repository are designed to be easily used from the command line, providing a straightforward interface for executing various molecular modeling tasks. Each script is tailored to perform specific functions, such as setting up simulations, analyzing results, or managing environments. Non-CLI variants are also available. These alternatives are meant to allow for easier intergation into existing scripts. By offering these non-CLI alternatives, we aim to support a seamless integration of our scripts into diverse scientific workflows, enhancing both flexibility and productivity.
+Most files in this repository are designed to be easily used from the command line, providing a straightforward interface for executing various molecular modeling tasks. Each script is tailored to perform specific functions, such as setting up simulations, analyzing results, or managing environments. Non-CLI variants are also available. These alternatives are meant to allow for easier intergation into existing projects. By offering these non-CLI alternatives, we aim to support a seamless integration of our scripts into diverse scientific workflows, enhancing both flexibility and productivity.
 
     ## Command Line Interface (CLI)
     - **Example Command**: `python script_name.py`
-    - **Description**: This command runs the specified script and will reult in the help text being printed. Detailed usage instructions can be found in the individual script documentation.
+    - **Description**: This command runs the specified script and will result in the help text being printed. Detailed usage instructions can be found in the individual script documentation.
 
     ## Non-CLI Variants
     - **API Usage and Integration**: Non-CLI variants are designed to facilitate easier integration into existing Python scripts and workflows. These include APIs and modular functions that can be imported and utilized within your code. Examples of how to integrate these functions are provided in the `examples` directory, demonstrating how to incorporate the scripts' functionality into larger projects without needing to use the command line.
