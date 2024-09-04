@@ -1,6 +1,7 @@
 #!/bin/bash
+python initalize.py  #YOUR_PDB_HERE
 
-for i in $(seq -5.0 -1.0 -15.0)
+for i in $(seq 9 -3.0 -15)
 do
     # Use printf to format the float to 1 decimal place
     adams_value=$(printf "%.1f" $i)
@@ -15,5 +16,5 @@ do
     fi
     
     echo "Running with Adams value: $adams_value, Previous PDB: $previous_pdb"
-    python annealing.py -a $adams_value -p $previous_pdb -m fine
+    python annealing.py -a $adams_value -p $previous_pdb -m coarse
 done

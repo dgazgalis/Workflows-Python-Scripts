@@ -142,7 +142,7 @@ def main():
     print(f"Rounded down Adams value: {half_max_adams_rounded:.1f} (count: {molecule_counts[half_max_adams_rounded]})")
 
     print("\nStarting second annealing schedule:")
-    second_schedule = np.arange(half_max_adams_rounded, -18, -1).tolist()
+    second_schedule = np.arange(half_max_adams_rounded, -20, -1).tolist()
     
     print("Second Annealing Schedule:", second_schedule)
     

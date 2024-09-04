@@ -5,7 +5,6 @@ from simtk.unit import *
 from openmmtools.integrators import BAOABIntegrator
 from sys import stdout
 import numpy as np
-import mdtraj
 import grand
 
 def main(input_pdb):

@@ -23,6 +23,6 @@ GRAND
 2. G. A. Ross, H. E. Bruce Macdonald, C. Cave-Ayland, A. I. Cabedo Martinez, J. W. Essex, J. Chem. Theory Comput. 2017, 13, 12, 6373-6381, DOI: https://doi.org/10.1021/acs.jctc.7b00738
 3. M. L. Samways, H. E. Bruce Macdonald, J. W. Essex, _J. Chem. Inf. Model._, 2020, 60, 4436-4441, DOI: https://doi.org/10.1021/acs.jcim.0c00648
 
-SACO
+SACP
 1. F. Guarnieri, M. Mezei, J. Am. Chem. Soc. 1996, 118, 35, 8493-8494, DOI: https://doi.org/10.1021/ja961482a
 2. M. Clark, F. Guarnieri, I. Shkurko, J. Wiseman, J. Chem. Inf. Model. 2006, 46, 1, 231-242, DOI: https://doi.org/10.1021/ci050268f
