@@ -1,0 +1,30 @@
+name: pdb-simulation-analysis-py311
+channels:
+  - omnia
+  - anaconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11  # The Python interpreter version
+  - openmm       # Toolkit for molecular simulation
+  - pdbfixer     # Tool to fix common problems in PDB files
+  - mdtraj       # Library for molecular dynamics trajectories
+  - numpy        # Fundamental package for scientific computing with Python
+  - pandas       # Powerful data manipulation and analysis library
+  - scipy        # Library used for scientific and technical computing
+  - matplotlib   # Plotting library for creating static, animated, and interactive visualizations
+  - jupyter      # Interactive computing and notebook environment
+  - biopython    # Collection of tools for biological computation
+  - nglview      # For visualizing molecular structures in Jupyter notebooks
+  - rdkit        # Library for cheminformatics and molecular modeling
+  - openbabel    # For molecular conversions and file format handling
+  - pytraj       # For molecular dynamics trajectory analysis
+  - prody        # Toolkit for protein structure analysis
+  - seaborn      # High-level interface for drawing attractive statistical graphics
+  - networkx     # For creating, manipulating, and studying the structure of complex networks
+  - pymol        # Molecular visualization and analysis system
+  - ambertools   # Collection of programs for molecular modeling and simulation
+  - pip          # Package installer for Python
+  - pip:
+    - MDAnalysis  # Library for the analysis of molecular dynamics simulations
+    - biopandas   # Tools to work with PDB files in a pandas-like manner

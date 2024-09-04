@@ -1,0 +1,37 @@
+name: openmm-openff-openfe-grand-py311
+channels:
+  - omnia
+  - anaconda
+  - conda-forge
+  - essexlab
+  - defaults
+dependencies:
+  - python=3.11
+  - openmm
+  - openff-toolkit
+  - forcebalance
+  - geometric
+  - openff-evaluator
+  - torsiondrive 
+  - pymbar
+  - openmm-torch
+  - pdbfixer
+  - mdtraj
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - jupyter
+  - openfe
+  - gufe
+  - grand
+  - xtb
+  - pyscf
+  - biopython 
+  - pip
+  - pip:
+    - gpu4pyscf-cuda12x
+    - cutensor-cu12
+    - dftd3
+    - dftd4
+    - git+https://github.com/pyscf/semiempirical
