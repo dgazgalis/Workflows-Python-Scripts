@@ -1,0 +1,71 @@
+1. Platform Detection (Run Before System Preparation)
+
+    Objective: Detect and select the best available compute platform (CUDA, OpenCL, or Reference).
+    Procedure: Run platform detection to choose the most suitable hardware (GPU or CPU).
+
+2. System Loading (Prepared System)
+
+    Force Fields: Ensure that the following are applied:
+        Amber14SB for proteins.
+        TIP3P for the water model.
+        Associated force fields for DNA, RNA, and lipids, if present in the system.
+    Input Files: Load the system's topology (PDB) and parameter files with these force fields applied during the preparation stage.
+    Solvent: The system should already be solvated with TIP3P waters.
+    Ligands: For any small molecules, ensure the proper parametrization with GAFF2 or other compatible force fields.
+
+This adjustment ensures compatibility with OpenMM while still aligning with reliable and widely-used force fields.
+
+Checkpoint: Save the prepared system before starting the simulation process.
+2. Energy Minimization
+
+    Objective: Minimize the energy of the system to remove steric clashes and bad contacts.
+    Procedure: Use the MinimizeEnergy() function in OpenMM to bring the system to a local minimum.
+    Duration: Run until the energy gradient is below a set threshold.
+
+Checkpoint: Save system state and coordinates post-minimization.
+3. Velocity Assignment (Low Temperature)
+
+    Objective: Assign initial velocities to atoms at a low temperature (e.g., 10 K).
+    Procedure: Use the setVelocitiesToTemperature() function to assign velocities based on a low initial temperature.
+
+Checkpoint: Save the system after velocity assignment.
+4. Gradual Heating to Target Temperature
+
+    Objective: Slowly heat the system from the low starting temperature (e.g., 10 K) to the desired production temperature (e.g., 300 K).
+    Procedure: Perform a series of short simulations (e.g., 10–20 ps) in increments of temperature (e.g., 50 K), using Langevin dynamics to maintain stability.
+    Temperature Control: Use a thermostat (Langevin integrator) to control the heating phase.
+
+Checkpoint: Save system state at intermediate stages and after reaching the target temperature.
+5. NVT Equilibration (Constant Volume, Constant Temperature)
+
+    Objective: Equilibrate the system at the production temperature under constant volume and temperature.
+    Procedure: Run an NVT simulation (e.g., 1–2 ns) using a Langevin thermostat to maintain the desired temperature.
+    Duration: Typically runs for 1-2 nanoseconds.
+
+Checkpoint: Save system state after NVT equilibration.
+6. NPT Equilibration (Constant Pressure, Constant Temperature)
+
+    Objective: Equilibrate the system under constant pressure (1 atm) and constant temperature (e.g., 300 K).
+    Pressure Control: Use a barostat (Monte Carlo barostat) in OpenMM to regulate pressure.
+    Duration: This step typically runs for 1-2 ns.
+
+Checkpoint: Save system state after NPT equilibration.
+7. Production MD Simulation
+
+    Objective: Run the production MD simulation at constant pressure and temperature.
+    Duration: Depending on the research goals, the production phase can last from a few nanoseconds to microseconds.
+    Saving Trajectories: Save coordinates, velocities, and energies at regular intervals to a trajectory file (e.g., DCD format).
+    Restart Files: Save checkpoints periodically to allow recovery if needed.
+
+Checkpoint: Save system state at regular intervals (e.g., every 50-100 ps) during production.
+8. Post-Simulation Analysis
+
+    Trajectory Analysis: Analyze properties like RMSD, RMSF, radius of gyration, hydrogen bonds, etc.
+    Free Energy Calculations: If needed, run binding free energy calculations (e.g., MM/PBSA, MM/GBSA).
+
+Additional Considerations
+
+    Error Handling & Logging: Ensure error handling is in place with appropriate logging for tracking simulation progress.
+    Hardware Utilization: Optimize for GPUs if available for performance enhancement.
+    Scalability: Consider parallelization if running on a cluster for large systems.
+

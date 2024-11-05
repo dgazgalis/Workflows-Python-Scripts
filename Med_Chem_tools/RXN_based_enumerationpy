@@ -1,0 +1,526 @@
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem import rdChemReactions
+
+def load_molecules(file_path):
+    suppl = Chem.SDMolSupplier(file_path)
+    mols = [mol for mol in suppl if mol is not None]
+    print(f"Loaded {len(mols)} molecules from {file_path}")
+    return mols
+
+def find_atom_by_smarts(mol, smarts_patterns):
+    for pattern in smarts_patterns:
+        patt = Chem.MolFromSmarts(pattern)
+        if mol.HasSubstructMatch(patt):
+            match = mol.GetSubstructMatch(patt)
+            return match[0]  # Return the index of the first matching atom
+    return None
+
+# Define atom finders
+ATOM_FINDERS = {
+    "bromine": lambda mol: find_atom_by_smarts(mol, ["[#35]"]),
+    "boronic_acid": lambda mol: find_atom_by_smarts(mol, ["[#6][B](O)(O)", "[#6][B]([O-])([O-])", "[#6][B]([O-])(O)"]),
+    "azide": lambda mol: find_atom_by_smarts(mol, ["[N-][N+]#N"]),
+    "alkyne": lambda mol: find_atom_by_smarts(mol, ["C#C[#6]"]),
+    "aryl_halide": lambda mol: find_atom_by_smarts(mol, ["c[F,Cl,Br,I]"]),
+    "amine": lambda mol: find_atom_by_smarts(mol, ["[#7;!H0]"]),
+    "carbonyl": lambda mol: find_atom_by_smarts(mol, ["C=O"]),
+    "carboxylic_acid": lambda mol: find_atom_by_smarts(mol, ["C(=O)O"]),
+    "activated_aryl_halide": lambda mol: find_atom_by_smarts(mol, ["c([F,Cl,Br,I])[$(c[N+](=O)[O-]),$([n+])]"]),
+    "nucleophile": lambda mol: find_atom_by_smarts(mol, ["[N,O,S;!H0]"]),
+    "aldehyde": lambda mol: find_atom_by_smarts(mol, ["[CH;R0]=O"]),
+    "ketone": lambda mol: find_atom_by_smarts(mol, ["[C;R0](=O)[#6]"]),
+    "alcohol": lambda mol: find_atom_by_smarts(mol, ["[OH]"]),
+    "alkyl_halide": lambda mol: find_atom_by_smarts(mol, ["[#6][F,Cl,Br,I]"]),
+    "terminal_alkene": lambda mol: find_atom_by_smarts(mol, ["[CH2]=[CH]"]),
+    "thiol": lambda mol: find_atom_by_smarts(mol, ["[SH]"]),
+    "isocyanate": lambda mol: find_atom_by_smarts(mol, ["[N]=[C]=[O]"]),
+    "aniline": lambda mol: find_atom_by_smarts(mol, ["c[N;!H0]"]),
+    "ester": lambda mol: find_atom_by_smarts(mol, ["[C;R0](=O)[O][#6]"]),
+    "sulfonyl_chloride": lambda mol: find_atom_by_smarts(mol, ["[S](=O)(=O)Cl"]),
+    "alkyl_tin": lambda mol: find_atom_by_smarts(mol, ["[#6][Sn][#6]"]),
+    "heteroaryl_halide": lambda mol: find_atom_by_smarts(mol, ["[n,o,s][F,Cl,Br,I]"]),
+    "alkyl_zinc": lambda mol: find_atom_by_smarts(mol, ["[#6][Zn][#6]"]),
+    "alkyl_iodide": lambda mol: find_atom_by_smarts(mol, ["[#6][I]"]),
+    "alkyl_boron": lambda mol: find_atom_by_smarts(mol, ["[#6][B][#6]"]),
+    "alkyl_magnesium": lambda mol: find_atom_by_smarts(mol, ["[#6][Mg][#6]"]),
+    "alkyl_copper": lambda mol: find_atom_by_smarts(mol, ["[#6][Cu][#6]"]),
+    "alkyl_palladium": lambda mol: find_atom_by_smarts(mol, ["[#6][Pd][#6]"]),
+    "alkyl_nickel": lambda mol: find_atom_by_smarts(mol, ["[#6][Ni][#6]"]),
+    "alkyl_gold": lambda mol: find_atom_by_smarts(mol, ["[#6][Au][#6]"]),
+}
+
+# Define reactions with their SMARTS patterns
+REACTIONS = {
+    "aldol_condensation": {
+        "name": "Aldol Condensation",
+        "smarts": [
+            "[CH;R0:1]=[O:2].[CH2:3][C:4](=[O:5])[#6:6]>>[CH:1]=[CH:3][C:4](=[O:5])[#6:6].[O:2]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["aldehyde"],
+        "reactant2_finder": ATOM_FINDERS["ketone"]
+    },
+    "amide_formation": {
+        "name": "Amide Formation",
+        "smarts": [
+            "[C:1](=[O:2])O[*:3].[N:4]H[*:5]>>[C:1](=[O:2])[N:4][*:5].[O:3]H"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carboxylic_acid"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "buchwald_hartwig": {
+        "name": "Buchwald-Hartwig Amination",
+        "smarts": [
+            "[*:1][C:2](Br)[*:3].[N:4]H[*:5]>>[*:1][C:2]([N:4][*:5])[*:3].Br"
+        ],
+        "reactant1_finder": ATOM_FINDERS["aryl_halide"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "click": {
+        "name": "Click Chemistry (CuAAC)",
+        "smarts": [
+            "[*:1][N:2]=[N+:3]=[N-:4].[C:5]#[C:6][*:7]>>[*:1][N:2]1[N:3]=[N:4][C:6]=[C:5]1[*:7]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["azide"],
+        "reactant2_finder": ATOM_FINDERS["alkyne"]
+    },
+    "diels_alder": {
+        "name": "Diels-Alder Reaction",
+        "smarts": [
+            "[C:1]=[C:2][C:3]=[C:4].[C:5]#[C:6]>>[C:1]1[C:2][C:3][C:4][C:5][C:6]1"
+        ],
+        "reactant1_finder": lambda mol: find_atom_by_smarts(mol, ["[C]=[C][C]=[C]"]),
+        "reactant2_finder": ATOM_FINDERS["alkyne"]
+    },
+    "esterification": {
+        "name": "Esterification",
+        "smarts": [
+            "[C:1](=[O:2])[OH].[OH][#6:3]>>[C:1](=[O:2])[O][#6:3]"
+                ],
+        "reactant1_finder": ATOM_FINDERS["carboxylic_acid"],
+        "reactant2_finder": ATOM_FINDERS["alcohol"]
+    },
+    "michael_addition": {
+        "name": "Michael Addition",
+        "smarts": [
+            "[C:1]=[C:2][C:3]=[O:4].[N,C,O,S;!H0:5]>>[C:1]([N,C,O,S:5])[C:2][C:3]=[O:4]"
+        ],
+        "reactant1_finder": lambda mol: find_atom_by_smarts(mol, ["[C]=[C][C]=[O]"]),
+        "reactant2_finder": ATOM_FINDERS["nucleophile"]
+    },
+    "reductive_amination": {
+        "name": "Reductive Amination",
+        "smarts": [
+            "[C:1](=[O:2])[*:3].[N:4]H[*:5]>>[C:1]([N:4][*:5])[O:2]H[*:3]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carbonyl"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "sn2": {
+        "name": "SN2 Reaction",
+        "smarts": [
+            "[C:1][F,Cl,Br,I:2].[N,O,S:3]>>[C:1][N,O,S:3].[F,Cl,Br,I:2]-"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_halide"],
+        "reactant2_finder": ATOM_FINDERS["nucleophile"]
+    },
+    "SnAr": {
+        "name": "Nucleophilic Aromatic Substitution",
+        "smarts": [
+            "[c:1]([F,Cl,Br,I:2])[*:3].[N,O,S:4]H[*:5]>>[c:1]([N,O,S:4][*:5])[*:3].[F,Cl,Br,I:2]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["activated_aryl_halide"],
+        "reactant2_finder": ATOM_FINDERS["nucleophile"]
+    },
+    "suzuki": {
+        "name": "Suzuki Coupling",
+        "smarts": [
+            "[*:1][C@H:2](Br)[*:3].[c:4][B:5](O)(O)>>[*:1][C@H:2]([c:4])[*:3].[B:5](O)(O)Br",
+            "[*:1][C@H:2](Br)[*:3].[c:4][B:5]([O-])([O-])>>[*:1][C@H:2]([c:4])[*:3].[B:5]([O-])([O-])Br",
+            "[*:1][C@H:2](Br)[*:3].[c:4][B:5]([O-])(O)>>[*:1][C@H:2]([c:4])[*:3].[B:5]([O-])(O)Br"
+        ],
+        "reactant1_finder": ATOM_FINDERS["bromine"],
+        "reactant2_finder": ATOM_FINDERS["boronic_acid"]
+    },
+    "thiol_ene": {
+        "name": "Thiol-ene Click Reaction",
+        "smarts": [
+            "[#6:1][CH:2]=[CH2:3].[SH][#6:4]>>[#6:1][CH2:2][CH2:3][S][#6:4]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["terminal_alkene"],
+        "reactant2_finder": ATOM_FINDERS["thiol"]
+    },
+    "urea_formation": {
+        "name": "Urea Formation",
+        "smarts": [
+            "[N:1]=[C:2]=[O:3].[NH2:4][#6:5]>>[N:1]([H])[C:2](=[O:3])[N:4][#6:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["isocyanate"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "wittig": {
+        "name": "Wittig Reaction",
+        "smarts": [
+            "[P:1]([#6:2])([#6:3])([#6:4])=[C:5][#6:6].[C:7]=[O:8]>>[#6:2][P:1]([#6:3])([#6:4])[O:8].[C:5]=[C:7][#6:6]"
+        ],
+        "reactant1_finder": lambda mol: find_atom_by_smarts(mol, ["[P+]([#6])([#6])([#6])[C-]"]),
+        "reactant2_finder": ATOM_FINDERS["aldehyde"]
+    },
+    "amide_n_alkylation": {
+        "name": "Amide N-Alkylation",
+        "smarts": [
+            "[C:1](=[O:2])[N:3][*:4].[#6][F,Cl,Br,I:5]>>[C:1](=[O:2])[N:3]([#6:4])[*:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["amine"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "amidine_formation": {
+        "name": "Amidine Formation",
+        "smarts": [
+            "[C:1](=[O:2])[N:3][*:4].[#6][F,Cl,Br,I:5]>>[C:1](=[N:2])[N:3]([#6:4])[*:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["amine"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "aniline_n_alkylation": {
+        "name": "Aniline N-Alkylation",
+        "smarts": [
+            "[c:1][N:2][*:3].[#6][F,Cl,Br,I:4]>>[c:1][N:2]([#6:3])[*:4]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["aniline"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "carbamate_carbonate_formation": {
+        "name": "Carbamate/Carbonate Formation",
+        "smarts": [
+            "[C:1](=[O:2])[OH].[NH2:3][#6:4]>>[C:1](=[O:2])[O][NH2:3][#6:4]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carboxylic_acid"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "ester_condensation": {
+        "name": "Ester Condensation",
+        "smarts": [
+            "[C:1](=[O:2])[O][#6:3].[C:4](=[O:5])[OH]>>[C:1](=[O:2])[O][C:4](=[O:5])[#6:3].[OH]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["ester"],
+        "reactant2_finder": ATOM_FINDERS["carboxylic_acid"]
+    },
+    "friedel_crafts_acylation": {
+        "name": "Friedel-Crafts Acylation",
+        "smarts": [
+            "[C:1](=[O:2])[Cl].[c:3]>>[c:3][C:1](=[O:2])[Cl]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carbonyl"],
+        "reactant2_finder": lambda mol: find_atom_by_smarts(mol, ["c"])
+    },
+    "grignard": {
+        "name": "Grignard Reaction",
+        "smarts": [
+            "[C:1][Mg:2][Br,Cl,I:3].[C:4](=[O:5])[OH]>>[C:1][C:4](=[O:5])[OH].[Mg:2][Br,Cl,I:3]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_magnesium"],
+        "reactant2_finder": ATOM_FINDERS["carbonyl"]
+    },
+    "heck": {
+        "name": "Heck Reaction",
+        "smarts": [
+            "[C:1]=[C:2][Br,Cl,I:3].[C:4]=[C:5][#6:6]>>[C:1]=[C:2][C:4]=[C:5][#6:6].[Br,Cl,I:3]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_halide"],
+        "reactant2_finder": lambda mol: find_atom_by_smarts(mol, ["[C]=[C][#6]"]),
+    },
+    "heteroaryl_n_alkylation": {
+        "name": "Heteroaryl N-Alkylation",
+        "smarts": [
+            "[n,o,s:1][N:2][*:3].[#6][F,Cl,Br,I:4]>>[n,o,s:1][N:2]([#6:3])[*:4]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["heteroaryl_halide"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "n_acylation_to_urea": {
+        "name": "N-Acylation to Urea",
+        "smarts": [
+            "[C:1](=[O:2])[Cl].[NH2:3][#6:4]>>[C:1](=[O:2])[N:3]([#6:4])[H]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carbonyl"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "n_acylation_to_amide": {
+        "name": "N-Acylation to Amide",
+        "smarts": [
+            "[C:1](=[O:2])[Cl].[NH2:3][#6:4]>>[C:1](=[O:2])[N:3]([#6:4])[H]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carbonyl"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "n_arylation_with_ar_x": {
+        "name": "N-Arylation with Ar-X",
+        "smarts": [
+            "[c:1][F,Cl,Br,I:2].[N:3][#6:4]>>[c:1][N:3]([#6:4])[*:2]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["aryl_halide"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "n_substitution_with_alkyl_x": {
+        "name": "N-Substitution with Alkyl-X",
+        "smarts": [
+            "[N:1][*:2].[#6][F,Cl,Br,I:3]>>[N:1]([#6:2])[*:3]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["amine"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "n_sulfonylation": {
+        "name": "N-Sulfonylation",
+        "smarts": [
+            "[N:1][*:2].[S](=O)(=O)Cl>>[N:1]([*:2])[S](=O)(=O)[Cl]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["amine"],
+        "reactant2_finder": ATOM_FINDERS["sulfonyl_chloride"]
+    },
+    "o_acylation_to_ester": {
+        "name": "O-Acylation to Ester",
+        "smarts": [
+            "[C:1](=[O:2])[Cl].[OH:3][#6:4]>>[C:1](=[O:2])[O:3][#6:4]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carbonyl"],
+        "reactant2_finder": ATOM_FINDERS["alcohol"]
+    },
+    "o_substitution": {
+        "name": "O-Substitution",
+        "smarts": [
+            "[O:1][*:2].[#6][F,Cl,Br,I:3]>>[O:1]([#6:2])[*:3]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alcohol"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "o_sulfonylation": {
+        "name": "O-Sulfonylation",
+        "smarts": [
+            "[O:1][*:2].[S](=O)(=O)Cl>>[O:1]([*:2])[S](=O)(=O)[Cl]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alcohol"],
+        "reactant2_finder": ATOM_FINDERS["sulfonyl_chloride"]
+    },
+    "negishi_coupling": {
+        "name": "Negishi Coupling",
+        "smarts": [
+            "[#6:1][Zn:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Zn:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_zinc"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "kumada_coupling": {
+        "name": "Kumada Coupling",
+        "smarts": [
+            "[#6:1][Mg:2][Br,Cl,I:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Mg:2][Br,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_magnesium"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "reductive_amination": {
+        "name": "Reductive Amination",
+        "smarts": [
+            "[C:1](=[O:2])[*:3].[N:4]H[*:5]>>[C:1]([N:4][*:5])[O:2]H[*:3]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["carbonyl"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "sonogashira_reaction": {
+        "name": "Sonogashira Reaction",
+        "smarts": [
+            "[C:1]#[C:2].[#6:3][Pd:4][#6:5]>>[C:1]#[C:2][#6:3].[Pd:4][#6:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyne"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_palladium"]
+    },
+    "s_substitution": {
+        "name": "S-Substitution",
+        "smarts": [
+            "[S:1][*:2].[#6][F,Cl,Br,I:3]>>[S:1]([#6:2])[*:3]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["thiol"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+        "stille_reaction": {
+        "name": "Stille Reaction",
+        "smarts": [
+            "[#6:1][Sn:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Sn:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_tin"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "suzuki_coupling": {
+        "name": "Suzuki Coupling",
+        "smarts": [
+            "[*:1][C@H:2](Br)[*:3].[c:4][B:5](O)(O)>>[*:1][C@H:2]([c:4])[*:3].[B:5](O)(O)Br",
+            "[*:1][C@H:2](Br)[*:3].[c:4][B:5]([O-])([O-])>>[*:1][C@H:2]([c:4])[*:3].[B:5]([O-])([O-])Br",
+            "[*:1][C@H:2](Br)[*:3].[c:4][B:5]([O-])(O)>>[*:1][C@H:2]([c:4])[*:3].[B:5]([O-])(O)Br"
+        ],
+        "reactant1_finder": ATOM_FINDERS["bromine"],
+        "reactant2_finder": ATOM_FINDERS["boronic_acid"]
+    },
+    "wittig_olefination": {
+        "name": "Wittig Olefination",
+        "smarts": [
+            "[P:1]([#6:2])([#6:3])([#6:4])=[C:5][#6:6].[C:7]=[O:8]>>[#6:2][P:1]([#6:3])([#6:4])[O:8].[C:5]=[C:7][#6:6]"
+        ],
+        "reactant1_finder": lambda mol: find_atom_by_smarts(mol, ["[P+]([#6])([#6])([#6])[C-]"]),
+        "reactant2_finder": ATOM_FINDERS["aldehyde"]
+    },
+    "cadiot_chodkiewicz_coupling": {
+        "name": "Cadiot-Chodkiewicz Coupling",
+        "smarts": [
+            "[C:1]#[C:2].[#6:3][Cu:4][#6:5]>>[C:1]#[C:2][#6:3].[Cu:4][#6:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyne"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_copper"]
+    },
+    "castro_stephens_coupling": {
+        "name": "Castro-Stephens Coupling",
+        "smarts": [
+            "[#6:1][Cu:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Cu:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_copper"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "corey_house_synthesis": {
+        "name": "Corey-House Synthesis",
+        "smarts": [
+            "[#6:1][Li:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Li:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_lithium"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "stille_cross_coupling": {
+        "name": "Stille Cross Coupling",
+        "smarts": [
+            "[#6:1][Sn:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Sn:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_tin"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "hiyama_coupling": {
+        "name": "Hiyama Coupling",
+        "smarts": [
+            "[#6:1][Si:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Si:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_silicon"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "fukuyama_coupling": {
+        "name": "Fukuyama Coupling",
+        "smarts": [
+            "[#6:1][Pd:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Pd:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_palladium"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "liebeskind_srogl_coupling": {
+        "name": "Liebeskind-Srogl Coupling",
+        "smarts": [
+            "[#6:1][B:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[B:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_boron"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "ullmann_type_reaction": {
+        "name": "Ullmann-Type Reaction",
+        "smarts": [
+            "[#6:1][Cu:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Cu:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_copper"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    },
+    "buchwald_hartwig_reaction": {
+        "name": "Buchwald-Hartwig Reaction",
+        "smarts": [
+            "[*:1][C:2](Br)[*:3].[N:4]H[*:5]>>[*:1][C:2]([N:4][*:5])[*:3].Br"
+        ],
+        "reactant1_finder": ATOM_FINDERS["aryl_halide"],
+        "reactant2_finder": ATOM_FINDERS["amine"]
+    },
+    "chan_lam_coupling": {
+        "name": "Chan-Lam Coupling",
+        "smarts": [
+            "[#6:1][Cu:2][#6:3].[#6:4][F,Cl,Br,I:5]>>[#6:1][#6:4][#6:3].[Cu:2][F,Cl,Br,I:5]"
+        ],
+        "reactant1_finder": ATOM_FINDERS["alkyl_copper"],
+        "reactant2_finder": ATOM_FINDERS["alkyl_halide"]
+    }
+}
+
+def perform_reaction(reactant1, reactant2, reaction_type):
+    try:
+        reaction = REACTIONS[reaction_type]
+        for smarts in reaction["smarts"]:
+            rxn = rdChemReactions.ReactionFromSmarts(smarts)
+            rxn.Initialize()
+            
+            products = rxn.RunReactants((reactant1, reactant2))
+            
+            if products:
+                product = products[0][0]
+                Chem.RemoveHs(product)
+                Chem.SanitizeMol(product)
+                print(f"{reaction['name']} successful")
+                print(f"Product SMILES: {Chem.MolToSmiles(product)}")
+                return product
+        
+        print(f"{reaction['name']} produced no products")
+        print(f"Reactant 1 SMILES: {Chem.MolToSmiles(reactant1)}")
+        print(f"Reactant 2 SMILES: {Chem.MolToSmiles(reactant2)}")
+        return None
+    except Exception as e:
+        print(f"Error in {reaction['name']}: {str(e)}")
+        print(f"Reactant 1 SMILES: {Chem.MolToSmiles(reactant1)}")
+        print(f"Reactant 2 SMILES: {Chem.MolToSmiles(reactant2)}")
+        return None
+
+def enumerate_reactions(reactant1_file, reactant2_file, reaction_type, output_file):
+    try:
+        reaction = REACTIONS[reaction_type]
+        reactant1_mols = load_molecules(reactant1_file)
+        reactant2_mols = load_molecules(reactant2_file)
+   
+        writer = Chem.SDWriter(output_file)
+        reaction_count = 0
+   
+        for i, reactant1_mol in enumerate(reactant1_mols):
+            r1_idx = reaction["reactant1_finder"](reactant1_mol)
+            if r1_idx is None:
+                print(f"No suitable group found in molecule {i+1} from {reactant1_file}")
+                continue
+       
+            for j, reactant2_mol in enumerate(reactant2_mols):
+                r2_idx = reaction["reactant2_finder"](reactant2_mol)
+                if r2_idx is None:
+                    print(f"No suitable group found in molecule {j+1} from {reactant2_file}")
+                    continue
+           
+                product = perform_reaction(reactant1_mol, reactant2_mol, reaction_type)
+                if product:
+                    AllChem.Compute2DCoords(product)
+                    writer.write(product)
+                    reaction_count += 1
+                else:
+                    print(f"Reaction failed for reactant1 molecule {i+1} and reactant2 molecule {j+1}")
+   
+        writer.close()
+        print(f"Total successful {reaction['name']} reactions: {reaction_count}")
+        return reaction_count
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return 0
+
+# Usage
+reaction_type = input("Enter reaction type (aldol_condensation/amide_formation/buchwald_hartwig/click/diels_alder/esterification/michael_addition/reductive_amination/sn2/SnAr/suzuki/thiol_ene/urea_formation/wittig/amide_n_alkylation/amidine_formation/aniline_n_alkylation/carbamate_carbonate_formation/ester_condensation/friedel_crafts_acylation/grignard/heck/heteroaryl_n_alkylation/n_acylation_to_urea/n_acylation_to_amide/n_arylation_with_ar_x/n_substitution_with_alkyl_x/n_sulfonylation/o_acylation_to_ester/o_substitution/o_sulfonylation/negishi_coupling/kumada_coupling/sonogashira_reaction/s_substitution/stille_reaction/wittig_olefination/cadiot_chodkiewicz_coupling/castro_stephens_coupling/corey_house_synthesis/stille_cross_coupling/hiyama_coupling/fukuyama_coupling/liebeskind_srogl_coupling/ullmann_type_reaction/buchwald_hartwig_reaction/chan_lam_coupling): ").lower()
+if reaction_type not in REACTIONS:
+    print("Invalid reaction type. Please choose from the available reactions.")
+else:
+    reactant1_file = input("JBJ_Click_scafold.sh ")
+    reactant2_file = input("Enter filename for reactant 2: ")
+    output_file = input("Enter output filename: ")
+    total_reactions = enumerate_reactions(reactant1_file, reactant2_file, reaction_type, output_file)
+    print(f"Total reactions performed: {total_reactions}")
+    
